@@ -1,12 +1,32 @@
+version: "3.9"
+
+networks:
+  remnawave-network:
+    external: true
+
 services:
+  # Remnawave / Bedolaga бот с API
+  remnawave_bot:
+    image: bedolaga/remnawave-bot:latest   # подставь свой образ
+    container_name: remnawave_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      # Web API наружу (чтобы и Telegram Mini App, и кабинет могли ходить)
+      - "${WEB_API_PORT:-8080}:8080"
+    networks:
+      - remnawave-network
+
+  # Frontend кабинета
   cabinet-frontend:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        # Куда ходит кабинет (бот внутри docker-сети)
+        # API бота внутри docker-сети
         CABINET_API_URL: "http://remnawave_bot:8080"
-        # Браузерский базовый путь до API (Nginx слушает /api)
+        # Браузерский базовый путь до API (снаружи будет /api -> remnawave_bot)
         VITE_API_URL: "/api"
         VITE_TELEGRAM_BOT_USERNAME: "${VITE_TELEGRAM_BOT_USERNAME}"
         VITE_APP_NAME: "${VITE_APP_NAME:-Cabinet}"
@@ -16,6 +36,7 @@ services:
     env_file:
       - .env
     ports:
+      # Frontend наружу, чтобы Easypanel вёл домен на этот порт
       - "${CABINET_PORT:-3020}:80"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
@@ -25,7 +46,3 @@ services:
       start_period: 10s
     networks:
       - remnawave-network
-
-networks:
-  remnawave-network:
-    external: true
