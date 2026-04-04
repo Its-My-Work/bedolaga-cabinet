@@ -3,19 +3,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Устанавливаем git для клонирования репозитория
-RUN apk add --no-cache git
-
-# Клонируем репозиторий при сборке (всегда актуальный код)
-ARG REPO_URL=https://github.com/Its-My-Work/bedolaga.git
-ARG BRANCH=main
-RUN git clone --depth 1 --branch ${BRANCH} ${REPO_URL} /tmp/repo
-
-# Копируем только cabinet из клонированного репозитория
-RUN cp -r /tmp/repo/cabinet/* . && rm -rf /tmp/repo
+# Copy package files
+COPY package.json package-lock.json* ./
 
 # Install dependencies
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+# Copy source code
+COPY . .
 
 # Build arguments for environment variables
 ARG VITE_API_URL=/api
@@ -35,11 +30,9 @@ RUN npm run build
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
 
-# Копируем обновлённый nginx.conf с динамическим DNS
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port
 EXPOSE 80
