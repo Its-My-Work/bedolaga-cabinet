@@ -25,6 +25,10 @@ export default function TelegramLoginButton({ referralCode }: TelegramLoginButto
   const [oidcError, setOidcError] = useState('');
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [scriptFailed, setScriptFailed] = useState(false);
+  const [proxyLoading, setProxyLoading] = useState(false);
+  const [proxyLink, setProxyLink] = useState<string | null>(null);
+  const [proxyError, setProxyError] = useState<string | null>(null);
+
   const loginWithTelegramOIDC = useAuthStore((s) => s.loginWithTelegramOIDC);
 
   // Deep link auth state
@@ -428,6 +432,28 @@ export default function TelegramLoginButton({ referralCode }: TelegramLoginButto
     );
   }
 
+
+  const handleGetProxy = async () => {
+    setProxyLoading(true);
+    setProxyError(null);
+    try {
+      const response = await fetch('/api/cabinet/mtproxy/temp-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || 'Не удалось получить прокси');
+      }
+      const data = await response.json();
+      setProxyLink(data.link);
+    } catch (e: any) {
+      setProxyError(e.message || 'Ошибка получения прокси');
+    } finally {
+      setProxyLoading(false);
+    }
+  };
+
   // Deep link fallback UI
   if (scriptFailed) {
     const resolvedBotUsername = deepLinkBotUsername || botUsername;
@@ -496,6 +522,46 @@ export default function TelegramLoginButton({ referralCode }: TelegramLoginButto
                 {t('auth.waitingForConfirmation')}
               </div>
             )}
+
+            {/* Free proxy for Telegram access */}
+            <div className="mt-4 w-full max-w-xs">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-px flex-1 bg-dark-700" />
+                <span className="text-[10px] text-dark-500">ПРОБЛЕМЫ СО ВХОДОМ?</span>
+                <div className="h-px flex-1 bg-dark-700" />
+              </div>
+              {proxyLink ? (
+                <div className="space-y-2">
+                  <a
+                    href={proxyLink}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-semibold text-emerald-400 transition-all hover:bg-emerald-500/20"
+                  >
+                    🛡 Подключить прокси
+                  </a>
+                  <div className="rounded-lg border border-dark-600 bg-dark-800/50 px-3 py-2">
+                    <p className="text-[10px] text-dark-500">
+                      ℹ️ Если Telegram блокируется в вашем регионе, нажмите «Подключить прокси». Ключ действует <strong className="text-dark-400">30 минут</strong> — только для входа. После подключения вернитесь и нажмите «Открыть в Telegram».
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleGetProxy}
+                  disabled={proxyLoading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-dark-600 bg-dark-800/80 py-2.5 text-xs font-medium text-dark-300 transition-all hover:border-dark-500 hover:bg-dark-700 hover:text-white disabled:opacity-50"
+                >
+                  {proxyLoading ? (
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-dark-400 border-t-white" />
+                  ) : (
+                    <span>🛡 Бесплатный прокси для входа (30 мин)</span>
+                  )}
+                </button>
+              )}
+              {proxyError && (
+                <p className="mt-1 text-center text-[10px] text-red-400">{proxyError}</p>
+              )}
+            </div>
           </>
         ) : deepLinkError ? (
           <div className="flex flex-col items-center space-y-2">

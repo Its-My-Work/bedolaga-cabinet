@@ -205,7 +205,9 @@ export default function Referral() {
             <div className="rounded-xl bg-dark-800/30 p-3">
               <div className="text-sm text-dark-500">{t('referral.terms.inviterBonus')}</div>
               <div className="mt-1 text-lg font-semibold text-success-400">
-                {formatPositive(terms.inviter_bonus_rubles)}
+                {terms.first_topup_inviter_percent > 0
+                  ? `${terms.first_topup_inviter_percent}%`
+                  : formatPositive(terms.inviter_bonus_rubles)}
               </div>
             </div>
           )}

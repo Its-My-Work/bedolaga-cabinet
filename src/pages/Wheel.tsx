@@ -91,6 +91,51 @@ function calculateRotationForPrize(prizes: WheelPrize[], result: SpinResult): nu
   return stopAngle;
 }
 
+
+// ==================== SAVED PROMOCODES (localStorage) ====================
+interface SavedPromocode {
+  code: string;
+  prizeName: string;
+  emoji: string;
+  validUntil: string | null;
+  wonAt: string;
+}
+
+const PROMO_STORAGE_KEY = 'wheel_promocodes';
+
+function loadSavedPromocodes(): SavedPromocode[] {
+  try {
+    const raw = localStorage.getItem(PROMO_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const now = new Date().toISOString();
+    return parsed.filter((p: SavedPromocode) => !p.validUntil || p.validUntil >= now);
+  } catch {
+    return [];
+  }
+}
+
+function savePromocode(promo: SavedPromocode) {
+  const existing = loadSavedPromocodes();
+  if (existing.some(p => p.code === promo.code)) return;
+  existing.unshift(promo);
+  if (existing.length > 50) existing.length = 50;
+  localStorage.setItem(PROMO_STORAGE_KEY, JSON.stringify(existing));
+}
+
+const CopyIcon = () => (
+  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+  </svg>
+);
+
+const TicketIcon = () => (
+  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" />
+  </svg>
+);
+
 export default function Wheel() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -107,6 +152,11 @@ export default function Wheel() {
   const [isPayingStars, setIsPayingStars] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [showStarsConfirm, setShowStarsConfirm] = useState(false);
+  const [savedPromocodes, setSavedPromocodes] = useState<SavedPromocode[]>(loadSavedPromocodes);
+  const [promocodesExpanded, setPromocodesExpanded] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [daysFlash, setDaysFlash] = useState<'increase' | 'decrease' | null>(null);
+  const prevDaysRef = useRef<number | null>(null);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<number | null>(null);
   const paymentTypeInitialized = useRef(false);
 
@@ -143,6 +193,23 @@ export default function Wheel() {
       setSelectedSubscriptionId(config.eligible_subscriptions[0].id);
     }
   }, [config]);
+
+
+  // Detect subscription days change and flash animation
+  useEffect(() => {
+    if (!config) return;
+    const currentDays = config.user_subscription_days ?? 0;
+    if (prevDaysRef.current !== null && prevDaysRef.current !== currentDays) {
+      if (currentDays > prevDaysRef.current) {
+        setDaysFlash('increase');
+      } else if (currentDays < prevDaysRef.current) {
+        setDaysFlash('decrease');
+      }
+      const timer = setTimeout(() => setDaysFlash(null), 1500);
+      return () => clearTimeout(timer);
+    }
+    prevDaysRef.current = currentDays;
+  }, [config?.user_subscription_days]);
 
   // Function to poll for new spin result after Stars payment
   const pollForSpinResult = useCallback(
@@ -377,7 +444,8 @@ export default function Wheel() {
     mutationFn: () => wheelApi.spin(paymentType, selectedSubscriptionId ?? undefined),
     onSuccess: (result) => {
       if (result.success) {
-        setTargetRotation(result.rotation_degrees);
+        // Add tiny random offset to ensure targetRotation is always unique
+        setTargetRotation(result.rotation_degrees + Math.random() * 0.001);
         setSpinResult(result);
       } else {
         setIsSpinning(false);
@@ -423,6 +491,7 @@ export default function Wheel() {
 
   const handleSpinComplete = useCallback(() => {
     setIsSpinning(false);
+    setTargetRotation(null);
 
     // Check if this was a Stars payment spin
     if (isStarsSpinRef.current) {
@@ -466,6 +535,41 @@ export default function Wheel() {
     queryClient.invalidateQueries({ queryKey: ['wheel-config'] });
     queryClient.invalidateQueries({ queryKey: ['wheel-history'] });
   }, [queryClient, t, haptic, spinResult]);
+
+
+  // Save promocode to localStorage when won
+  useEffect(() => {
+    if (spinResult?.promocode && spinResult.success) {
+      const promo: SavedPromocode = {
+        code: spinResult.promocode,
+        prizeName: spinResult.prize_display_name || 'Промокод',
+        emoji: spinResult.emoji || '🎫',
+        validUntil: (spinResult as any).promocode_valid_until || null,
+        wonAt: new Date().toISOString(),
+      };
+      savePromocode(promo);
+      setSavedPromocodes(loadSavedPromocodes());
+    }
+  }, [spinResult?.promocode]);
+
+  const handleCopyPromocode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      haptic.notification('success');
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = code;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopiedCode(code);
+      haptic.notification('success');
+      setTimeout(() => setCopiedCode(null), 2000);
+    }
+  };
 
   const closeResultModal = () => {
     setSpinResult(null);
@@ -588,7 +692,18 @@ export default function Wheel() {
                         }`}
                       >
                         <CalendarIcon />
-                        {t('wheel.days', { count: config.spin_cost_days ?? 0 })}
+                        <span className="flex flex-col items-center leading-tight">
+                          <span>{t('wheel.days', { count: config.spin_cost_days ?? 0 })}</span>
+                          <span className={`text-[10px] transition-all duration-300 ${
+                            daysFlash === 'decrease'
+                              ? 'font-bold text-red-400 scale-110'
+                              : daysFlash === 'increase'
+                                ? 'font-bold text-green-400 scale-110'
+                                : 'opacity-60'
+                          }`}>
+                            {'осталось: ' + (config.user_subscription_days ?? 0) + ' дн.'}
+                          </span>
+                        </span>
                       </button>
                     )}
                   </div>
@@ -626,6 +741,14 @@ export default function Wheel() {
                     </div>
                   </div>
                 )}
+
+
+              {/* Disclaimer */}
+              {daysEnabled && paymentType === 'subscription_days' && (
+                <p className="text-center text-xs text-dark-500">
+                  ⚠️ За каждое вращение списывается {config.spin_cost_days ?? 1} день вашей подписки
+                </p>
+              )}
 
               {/* Stars confirmation panel */}
               {showStarsConfirm && !isSpinning && !isPayingStars ? (
@@ -739,6 +862,11 @@ export default function Wheel() {
                       <p className="select-all font-mono text-lg font-bold tracking-wider text-white">
                         {spinResult.promocode}
                       </p>
+                      {(spinResult as any).promocode_valid_until && (
+                        <p className="mt-1 text-xs text-dark-500">
+                          до {new Date((spinResult as any).promocode_valid_until).toLocaleDateString('ru-RU')}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -829,6 +957,92 @@ export default function Wheel() {
           )}
         </AnimatePresence>
       </Card>
+
+      {/* Saved Promocodes Section */}
+      {savedPromocodes.length > 0 && (
+        <Card>
+          <button
+            onClick={() => setPromocodesExpanded(!promocodesExpanded)}
+            className="flex w-full items-center justify-between p-4"
+          >
+            <h3 className="flex items-center gap-2 font-semibold text-dark-100">
+              <TicketIcon />
+              Мои промокоды
+              <span className="text-sm font-normal text-dark-500">({savedPromocodes.length})</span>
+            </h3>
+            <ChevronIcon expanded={promocodesExpanded} />
+          </button>
+
+          <AnimatePresence>
+            {promocodesExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="overflow-hidden"
+              >
+                <div className="border-t border-dark-700/30 px-4 pb-4 pt-2">
+                  <motion.div
+                    variants={staggerContainer}
+                    initial="hidden"
+                    animate="show"
+                    className="space-y-2"
+                  >
+                    {savedPromocodes.map((promo) => (
+                      <motion.div
+                        key={promo.code}
+                        variants={staggerItem}
+                        className="flex items-center justify-between rounded-linear border border-dark-700/30 bg-dark-800/30 p-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-linear bg-dark-700/50 text-xl">
+                            {promo.emoji}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-mono text-sm font-bold tracking-wider text-accent-400">
+                              {promo.code}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1 text-xs text-dark-500">
+                              <span>{promo.prizeName}</span>
+                              {promo.validUntil && (
+                                <>
+                                  <span>·</span>
+                                  <span>
+                                    до {new Date(promo.validUntil).toLocaleDateString('ru-RU')}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleCopyPromocode(promo.code)}
+                          className={`shrink-0 rounded-lg p-2 transition-colors ${
+                            copiedCode === promo.code
+                              ? 'bg-green-500/20 text-green-400'
+                              : 'text-dark-400 hover:bg-white/5 hover:text-dark-200'
+                          }`}
+                          title="Копировать"
+                        >
+                          {copiedCode === promo.code ? (
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                          ) : (
+                            <CopyIcon />
+                          )}
+                        </button>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Card>
+      )}
+
     </div>
   );
 }

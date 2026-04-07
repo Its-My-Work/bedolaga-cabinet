@@ -893,13 +893,18 @@ export default function Subscription() {
               {subscription.subscription_url && !subscription.hide_subscription_link && (
                 <div className="mb-5 flex gap-2">
                   <code
-                    className="scrollbar-hide flex-1 overflow-x-auto break-all rounded-[10px] px-3 py-2 font-mono text-[11px] text-dark-50/30"
+                    className="scrollbar-hide flex-1 overflow-hidden rounded-[10px] px-3 py-2 font-mono text-[11px] text-dark-50/30"
                     style={{
                       background: g.codeBg,
                       border: `1px solid ${g.codeBorder}`,
+                      whiteSpace: 'nowrap',
+                      textOverflow: 'ellipsis',
                     }}
+                    title={subscription.subscription_url}
                   >
-                    {subscription.subscription_url}
+                    {subscription.subscription_url.length > 60
+                      ? subscription.subscription_url.slice(0, 30) + '...' + subscription.subscription_url.slice(-20)
+                      : subscription.subscription_url}
                   </code>
                   <button
                     onClick={copyUrl}

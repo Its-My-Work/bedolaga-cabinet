@@ -6,6 +6,8 @@ export interface WheelPrize {
   emoji: string;
   color: string;
   prize_type: string;
+  win_count?: number;
+  is_locked?: boolean;
 }
 
 export interface EligibleSubscription {
@@ -32,6 +34,7 @@ export interface WheelConfig {
   required_balance_kopeks: number;
   has_subscription: boolean;
   eligible_subscriptions: EligibleSubscription[] | null;
+  user_subscription_days: number;
 }
 
 export interface SpinAvailability {
@@ -55,6 +58,7 @@ export interface SpinResult {
   rotation_degrees: number;
   message: string;
   promocode: string | null;
+  promocode_valid_until?: string | null;
   error: string | null;
 }
 

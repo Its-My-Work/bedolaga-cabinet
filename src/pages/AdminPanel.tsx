@@ -418,12 +418,7 @@ const sections: AdminSection[] = [
         to: '/admin/tickets',
         permission: 'tickets:read',
       },
-      {
-        name: 'admin.nav.banSystem',
-        icon: 'shield-alert',
-        to: '/admin/ban-system',
-        permission: 'ban_system:read',
-      },
+
     ],
   },
   {
@@ -549,12 +544,7 @@ const sections: AdminSection[] = [
         to: '/admin/email-templates',
         permission: 'email_templates:read',
       },
-      {
-        name: 'admin.nav.updates',
-        icon: 'refresh',
-        to: '/admin/updates',
-        permission: 'updates:read',
-      },
+
     ],
   },
   {

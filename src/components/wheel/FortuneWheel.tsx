@@ -24,9 +24,28 @@ const FortuneWheel = memo(function FortuneWheel({
   const wheelRef = useRef<SVGGElement>(null);
   const accumulatedRotation = useRef(0);
   const [displayRotation, setDisplayRotation] = useState(0);
+  const isAnimatingRef = useRef(false);
+  const onSpinCompleteRef = useRef(onSpinComplete);
+  onSpinCompleteRef.current = onSpinComplete;
+
+  // Use a spin counter to detect new spins reliably
+  const lastProcessedRotation = useRef<number | null>(null);
 
   useEffect(() => {
     if (isSpinning && targetRotation !== null && wheelRef.current) {
+      // Skip if we already processed this exact rotation value
+      if (lastProcessedRotation.current === targetRotation && isAnimatingRef.current) {
+        return;
+      }
+
+      // If already animating from a previous spin, force-complete it first
+      if (isAnimatingRef.current) {
+        isAnimatingRef.current = false;
+      }
+
+      isAnimatingRef.current = true;
+      lastProcessedRotation.current = targetRotation;
+
       const currentPos = accumulatedRotation.current % 360;
       let delta = targetRotation - currentPos;
       // Normalize delta to positive
@@ -36,12 +55,20 @@ const FortuneWheel = memo(function FortuneWheel({
       setDisplayRotation(newRotation);
 
       const timeout = setTimeout(() => {
-        onSpinComplete();
-      }, 5000);
+        isAnimatingRef.current = false;
+        lastProcessedRotation.current = null;
+        onSpinCompleteRef.current();
+      }, 5200);
 
-      return () => clearTimeout(timeout);
+      return () => {
+        clearTimeout(timeout);
+      };
     }
-  }, [isSpinning, targetRotation, onSpinComplete]);
+    if (!isSpinning) {
+      isAnimatingRef.current = false;
+      lastProcessedRotation.current = null;
+    }
+  }, [isSpinning, targetRotation]);
 
   if (prizes.length === 0) {
     return (
