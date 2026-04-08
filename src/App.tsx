@@ -85,6 +85,7 @@ const AdminTariffCreate = lazyWithRetry(() => import('./pages/AdminTariffCreate'
 const AdminServers = lazyWithRetry(() => import('./pages/AdminServers'));
 const AdminServerEdit = lazyWithRetry(() => import('./pages/AdminServerEdit'));
 const AdminDashboard = lazyWithRetry(() => import('./pages/AdminDashboard'));
+const AdminBanSystem = lazyWithRetry(() => import('./pages/AdminBanSystem'));
 const AdminBroadcasts = lazyWithRetry(() => import('./pages/AdminBroadcasts'));
 const AdminBroadcastCreate = lazyWithRetry(() => import('./pages/AdminBroadcastCreate'));
 const AdminPromocodes = lazyWithRetry(() => import('./pages/AdminPromocodes'));
@@ -124,6 +125,7 @@ const AdminRemnawaveSquadDetail = lazyWithRetry(() => import('./pages/AdminRemna
 const AdminEmailTemplates = lazyWithRetry(() => import('./pages/AdminEmailTemplates'));
 const AdminTrafficUsage = lazyWithRetry(() => import('./pages/AdminTrafficUsage'));
 const AdminSalesStats = lazyWithRetry(() => import('./pages/AdminSalesStats'));
+const AdminUpdates = lazyWithRetry(() => import('./pages/AdminUpdates'));
 const AdminUserDetail = lazyWithRetry(() => import('./pages/AdminUserDetail'));
 const AdminBroadcastDetail = lazyWithRetry(() => import('./pages/AdminBroadcastDetail'));
 const AdminPinnedMessages = lazyWithRetry(() => import('./pages/AdminPinnedMessages'));
@@ -726,6 +728,16 @@ function App() {
           }
         />
         <Route
+          path="/admin/ban-system"
+          element={
+            <PermissionRoute permission="ban_system:read">
+              <LazyPage>
+                <AdminBanSystem />
+              </LazyPage>
+            </PermissionRoute>
+          }
+        />
+        <Route
           path="/admin/broadcasts"
           element={
             <PermissionRoute permission="broadcasts:read">
@@ -1081,6 +1093,16 @@ function App() {
             <PermissionRoute permission="email_templates:read">
               <LazyPage>
                 <AdminEmailTemplates />
+              </LazyPage>
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="/admin/updates"
+          element={
+            <PermissionRoute permission="updates:read">
+              <LazyPage>
+                <AdminUpdates />
               </LazyPage>
             </PermissionRoute>
           }
